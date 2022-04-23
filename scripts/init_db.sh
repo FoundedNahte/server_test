@@ -2,12 +2,12 @@
 set -x
 set -eo pipefail
 
-if ! [-x "$(command -v psql)" ]; then
+if ! [ -x "$(command -v psql)" ]; then
 	echo >&2 "Erorr: psql is not installed."
 	exit 1
 fi
 
-if ! [-x "$(command -v sqlx)" ]; then
+if ! [ -x "$(command -v sqlx)" ]; then
 	echo >&2 "Error: sqlx is not installed."
 	echo >&2 "Use:"
 	echo >&2 "    cargo install --version=0.5.7 sqlx-cli --no-default-features --features postgres"
@@ -26,14 +26,18 @@ DB_PORT="${POSTGRES_PORT:=5432}"
 
 
 # Launch postgres using Docker
-docker run \
-	-e POSTGRES_USER=${DB_USER} \
-	-e POSTGRES_PASSWORD=${DB_PASSWORD} \
-	-e POSTGRES_DB=${DB_NAME} \
-	-p "${DB_PORT}":5432 \
-	-d postgres \
-	postgres -N 1000
+# Allow to skip Docker if a dockerized Postgres database is already running
+if [[ -z "${SKIP_DOCKER}" ]]
+then
+	docker run \
+		-e POSTGRES_USER=${DB_USER} \
+		-e POSTGRES_PASSWORD=${DB_PASSWORD} \
+		-e POSTGRES_DB=${DB_NAME} \
+		-p "${DB_PORT}":5432 \
+		-d postgres \
+		postgres -N 1000
 	# ^ Increased maximum number of connections for testing purposes
+fi
 
 # Keep pinging Postgres until it's ready to accept commands
 export PGPASSWORD="${DB_PASSWORD}"
@@ -46,3 +50,6 @@ done
 
 export DATABASE_URL=postgres://${DB_USER}:${DB_PASSWORD}@localhost:${DB_PORT}/${DB_NAME}
 sqlx database create
+sqlx migrate run
+
+>&2 echo "Postgres has been migrated, ready to go!"
