@@ -2,11 +2,13 @@ use sqlx::PgPool;
 use std::net::TcpListener;
 use servertest::startup::run;
 use servertest::configuration::get_configuration;
-use env_logger::Env;
+use servertest::telemetry::{get_subscriber, init_subscriber};
+
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+    let subscriber = get_subscriber("servertest".into(), "info".into(), std::io::stdout);
+    init_subscriber(subscriber);
     // Panic if we can't read configuration
     let configuration = get_configuration().expect("Failed to read configuration.");
     let connection_pool = PgPool::connect(&configuration.database.connection_string())
