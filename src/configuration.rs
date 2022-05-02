@@ -1,12 +1,27 @@
-use sqlx::ConnectOptions;
-use sqlx::postgres::{PgConnectOptions, PgSslMode};
-use serde_aux::field_attributes::deserialize_number_from_string;
+use crate::domain::SubscriberEmail;
 use secrecy::{ExposeSecret, Secret};
+use serde_aux::field_attributes::deserialize_number_from_string;
+use sqlx::postgres::{PgConnectOptions, PgSslMode};
+use sqlx::ConnectOptions;
 
 #[derive(serde::Deserialize)]
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
+    pub email_client: EmailClientSettings,
+}
+
+#[derive(serde::Deserialize)]
+pub struct EmailClientSettings {
+    pub base_url: String,
+    pub sender_email: String,
+    pub authorization_token: Secret<String>,
+}
+
+impl EmailClientSettings {
+    pub fn sender(&self) -> Result<SubscriberEmail, String> {
+        SubscriberEmail::parse(self.sender_email.clone())
+    }
 }
 
 #[derive(serde::Deserialize)]
@@ -32,7 +47,7 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
     let mut settings = config::Config::default();
     let base_path = std::env::current_dir().expect("Failed to determine the current directory");
     let configuration_directory = base_path.join("configuration");
-    
+
     // Read the "default" configuration file
     settings.merge(config::File::from(configuration_directory.join("base")).required(true))?;
 
@@ -42,10 +57,10 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         .unwrap_or_else(|_| "local".into())
         .try_into()
         .expect("Failed to parse APP_ENVIRONMENT.");
-    
+
     // Layer on the environment-specific values.
     settings.merge(
-        config::File::from(configuration_directory.join(environment.as_str())).required(true)
+        config::File::from(configuration_directory.join(environment.as_str())).required(true),
     )?;
     // Add in settings from environment variables (with a prefix of APP and '__' as separator)
     // E.g. `APP_APPLICATION__PORT=5001 would set `Settings.application.port`
@@ -56,7 +71,7 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
 // The possible runtime environment for our application
 pub enum Environment {
     Local,
-    Production
+    Production,
 }
 
 impl Environment {
@@ -70,7 +85,7 @@ impl Environment {
 
 impl TryFrom<String> for Environment {
     type Error = String;
-    
+
     fn try_from(s: String) -> Result<Self, Self::Error> {
         match s.to_lowercase().as_str() {
             "local" => Ok(Self::Local),
