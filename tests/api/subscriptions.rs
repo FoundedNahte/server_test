@@ -1,6 +1,6 @@
+use crate::helpers::spawn_app;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
-use crate::helpers::spawn_app;
 
 #[tokio::test]
 async fn subscribe_sends_a_confirmation_email_for_valid_data() {
@@ -14,6 +14,8 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data() {
         .expect(1)
         .mount(&app.email_server)
         .await;
+
+    app.post_subscriptions(body.into()).await;
 }
 
 #[tokio::test]
@@ -37,7 +39,7 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
             .links(s)
             .filter(|l| *l.kind() == linkify::LinkKind::Url)
             .collect();
-            assert_eq!(links.len(), 1);
+        assert_eq!(links.len(), 1);
         links[0].as_str().to_owned()
     };
 
@@ -47,31 +49,45 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
 }
 
 #[tokio::test]
+async fn subscribe_persists_the_new_subscriber() {
+    // Arrange
+    let app = spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&app.email_server)
+        .await;
+    // Act
+    app.post_subscriptions(body.into()).await;
+
+    // Assert
+    let saved = sqlx::query!("SELECT email, name, status FROM subscriptions",)
+        .fetch_one(&app.db_pool)
+        .await
+        .expect("Failed to fetch saved subscirption.");
+
+    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
+    assert_eq!(saved.name, "le guin");
+    assert_eq!(saved.status, "pending_confirmation");
+}
+
+#[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
     // Arrange
     let app = spawn_app().await;
-    let client = reqwest::Client::new();
-    
-    // Act
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-
+    let body = "name=le%20guin&email=urusla_le_guin%40gmail.com";
     Mock::given(path("/email"))
         .and(method("POST"))
         .respond_with(ResponseTemplate::new(200))
         .mount(&app.email_server)
         .await;
 
+    // Act
     let response = app.post_subscriptions(body.into()).await;
+
     // Assert
     assert_eq!(200, response.status().as_u16());
-
-    let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
-        .fetch_one(&app.db_pool)
-        .await
-        .expect("Failed to fetch saved subscription.");
-
-    assert_eq!(saved.email, "ursula_le_guin@gmail.com");
-    assert_eq!(saved.name, "le guin");
 }
 
 #[tokio::test]
@@ -99,7 +115,6 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
     }
 }
 
-
 #[tokio::test]
 async fn subscribe_returns_a_400_when_fields_are_present_but_invalid() {
     // Arrange
@@ -123,4 +138,3 @@ async fn subscribe_returns_a_400_when_fields_are_present_but_invalid() {
         );
     }
 }
-

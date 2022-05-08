@@ -1,13 +1,12 @@
 use once_cell::sync::Lazy;
+use servertest::configuration::{get_configuration, DatabaseSettings};
+use servertest::email_client::EmailClient;
+use servertest::startup::{get_connection_pool, run, Application};
+use servertest::telemetry::{get_subscriber, init_subscriber};
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use uuid::Uuid;
-use servertest::configuration::{get_configuration, DatabaseSettings};
-use servertest::email_client::EmailClient;
-use servertest::startup::{run, Application, get_connection_pool};
-use servertest::telemetry::{get_subscriber, init_subscriber};
 use wiremock::MockServer;
-
 
 // Ensure that the 'tracing' stack is only initialised only once using 'once_cell'
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -50,6 +49,7 @@ pub async fn spawn_app() -> TestApp {
         let mut c = get_configuration().expect("Failed to read configuration.");
         c.database.database_name = Uuid::new_v4().to_string();
         c.application.port = 0;
+        c.email_client.base_url = email_server.uri();
         c
     };
 

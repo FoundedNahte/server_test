@@ -1,12 +1,12 @@
-use crate::configuration::{Settings, DatabaseSettings};
+use crate::configuration::{DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
 use crate::routes::{health_check, subscribe};
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
+use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::net::TcpListener;
 use tracing_actix_web::TracingLogger;
-use sqlx::postgres::PgPoolOptions;
 
 pub struct Application {
     port: u16,
@@ -40,7 +40,7 @@ impl Application {
     }
 
     pub fn port(&self) -> u16 {
-        self.port 
+        self.port
     }
 
     pub async fn run_until_stopped(self) -> Result<(), std::io::Error> {
@@ -48,9 +48,7 @@ impl Application {
     }
 }
 
-pub fn get_connection_pool(
-    configuration: &DatabaseSettings
-) -> PgPool {
+pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
     PgPoolOptions::new()
         .connect_timeout(std::time::Duration::from_secs(2))
         .connect_lazy_with(configuration.with_db())
@@ -68,6 +66,7 @@ pub fn run(
             .wrap(TracingLogger::default())
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
+            .route("/subscriptions/confirm", web::get().to(confirm))
             .app_data(db_pool.clone())
             .app_data(email_client.clone())
     })
