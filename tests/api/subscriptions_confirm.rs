@@ -1,7 +1,7 @@
 use crate::helpers::spawn_app;
 use reqwest::Url;
-use wiremock::{ResponseTemplate, Mock};
-use wiremock::matchers::{path, method};
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, ResponseTemplate};
 
 #[tokio::test]
 async fn the_link_returned_by_subscribe_returns_a_200_if_called() {
@@ -29,14 +29,12 @@ async fn the_link_returned_by_subscribe_returns_a_200_if_called() {
         links[0].as_str().to_owned()
     };
     let raw_confirmation_link = &get_link(&body["Htmlbody"].as_str().unwrap());
-    let confirmation_link = Url::parse(raw_confirmation_link).unwrap();
-
+    let mut confirmation_link = Url::parse(raw_confirmation_link).unwrap();
     assert_eq!(confirmation_link.host_str().unwrap(), "127.0.0.1");
+    confirmation_link.set_port(Some(app.port)).unwrap();
 
     // Act
-    let response = reqwest::get(confirmation_link)
-        .await
-        .unwrap();
+    let response = reqwest::get(confirmation_link).await.unwrap();
     assert_eq!(response.status().as_u16(), 200);
 }
 
@@ -52,5 +50,4 @@ async fn confirmation_without_token_are_rejected_with_a_400() {
 
     // Assert
     assert_eq!(response.status().as_u16(), 400);
-
 }

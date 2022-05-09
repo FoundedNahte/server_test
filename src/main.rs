@@ -32,6 +32,12 @@ async fn main() -> std::io::Result<()> {
         configuration.application.host, configuration.application.port
     );
     let listener = TcpListener::bind(address)?;
-    run(listener, connection_pool, email_client)?.await?;
+    run(
+        listener,
+        connection_pool,
+        email_client,
+        configuration.application.base_url,
+    )?
+    .await?;
     Ok(())
 }
