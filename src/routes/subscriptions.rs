@@ -3,12 +3,12 @@ use crate::email_client::EmailClient;
 use crate::startup::ApplicationBaseUrl;
 use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, ResponseError};
+use anyhow::Context;
 use chrono::Utc;
-use sqlx::{PgPool, Postgres, Transaction};
-use uuid::Uuid;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
-use anyhow::Context;
+use sqlx::{PgPool, Postgres, Transaction};
+use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -62,9 +62,14 @@ pub async fn subscribe(
         .await
         .context("Failed to commit SQL transaction to store a new subscriber.")?;
 
-    send_confirmation_email(&email_client, new_subscriber, &base_url.0, &subscription_token)
-        .await
-        .context("Failed to send a confirmation email.")?;
+    send_confirmation_email(
+        &email_client,
+        new_subscriber,
+        &base_url.0,
+        &subscription_token,
+    )
+    .await
+    .context("Failed to send a confirmation email.")?;
 
     Ok(HttpResponse::Ok().finish())
 }
@@ -109,9 +114,7 @@ pub async fn store_token(
     )
     .execute(transaction)
     .await
-    .map_err(
-        StoreTokenError
-    )?;
+    .map_err(StoreTokenError)?;
     Ok(())
 }
 
@@ -139,7 +142,7 @@ impl std::error::Error for StoreTokenError {
     }
 }
 
-fn error_chain_fmt(
+pub fn error_chain_fmt(
     e: &impl std::error::Error,
     f: &mut std::fmt::Formatter<'_>,
 ) -> std::fmt::Result {
@@ -176,7 +179,7 @@ pub async fn send_confirmation_email(
         confirmation_link
     );
     email_client
-        .send_email(new_subscriber.email, "Welcome!", &html_body, &plain_body)
+        .send_email(&new_subscriber.email, "Welcome!", &html_body, &plain_body)
         .await
 }
 
@@ -209,4 +212,3 @@ fn generate_subscription_token() -> String {
         .take(25)
         .collect()
 }
-
