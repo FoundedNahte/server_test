@@ -1,3 +1,5 @@
+use argon2::password_hash::SaltString;
+use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
 use once_cell::sync::Lazy;
 use servertest::configuration::{get_configuration, DatabaseSettings};
 use servertest::startup::{get_connection_pool, Application};
@@ -5,8 +7,6 @@ use servertest::telemetry::{get_subscriber, init_subscriber};
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 use wiremock::MockServer;
-use argon2::password_hash::SaltString;
-use argon2::{Algorithm, Version, Params, Argon2, PasswordHasher};
 
 // Ensure that the 'tracing' stack is only initialised only once using 'once_cell'
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -64,7 +64,7 @@ pub struct TestApp {
     pub db_pool: PgPool,
     pub email_server: MockServer,
     pub port: u16,
-    test_user: TestUser
+    test_user: TestUser,
 }
 
 pub struct ConfirmationLinks {
@@ -143,7 +143,7 @@ pub async fn spawn_app() -> TestApp {
         port: application_port,
         db_pool: get_connection_pool(&configuration.database),
         email_server,
-        test_user: TestUser::generate()
+        test_user: TestUser::generate(),
     };
     test_app.test_user.store(&test_app.db_pool).await;
     test_app
